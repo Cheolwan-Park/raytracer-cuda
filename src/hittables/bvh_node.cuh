@@ -31,7 +31,7 @@ __global__ void construct_bvh_node(hittable_list **l, bvh_node *bvh_tree) {
         int top = -1;
         stack[++top] = 1;                   // tree idx
         stack[++top] = 0;                   // start
-        stack[++top] = int(list.size()) -1; // end
+        stack[++top] = int(list.size()); // end
         while(top > 0) {
             int e = stack[top--], s = stack[top--], idx = stack[top--];
             int axis = int(gpu_random(&rand_state, 0, 2.9999f));
@@ -59,31 +59,10 @@ __global__ void construct_bvh_node(hittable_list **l, bvh_node *bvh_tree) {
             }
         }
 
-        // print
-//        stack[++top] = 1;   // idx
-//        stack[++top] = 0;   // state
-//        while(top >= 0) {
-//            int state = stack[top--], idx = stack[top--];
-//            if(0 == state) {    // first encounter
-//                if(bvh_tree[idx].type == bvh_node_type::LEAF) {
-//                    auto *obj = (sphere*)bvh_tree[idx].obj;
-//                    printf("%d(%f, %f, %f) ", idx, obj->pos().x(), obj->pos().y(), obj->pos().z());
-//                } else if(bvh_tree[idx].type == bvh_node_type::PARENT) {
-//                    stack[++top] = idx; stack[++top] = 1;
-//                    stack[++top] = idx*2+1; stack[++top] = 0; // right
-//                    stack[++top] = idx*2; stack[++top] = 0; // left
-//                    printf("%d{ ", idx);
-//                }
-//            } else {
-//                printf("} ");
-//            }
-//        }
-//        printf("\n");
-
         stack[++top] = 1;   // idx;
         stack[++top] = 0;   // state
         while(top > 0) {
-            int idx = stack[top--], state = stack[top--];
+            int state = stack[top--], idx = stack[top--];
             if(0 == state) {
                 if (bvh_tree[idx].type == bvh_node_type::LEAF) {
                     bvh_tree[idx].obj->bounding_box(bvh_tree[idx].box);
@@ -92,10 +71,34 @@ __global__ void construct_bvh_node(hittable_list **l, bvh_node *bvh_tree) {
                     stack[++top] = idx*2+1; stack[++top] = 0;
                     stack[++top] = idx*2; stack[++top] = 0;
                 }
-            } else {
+            } else if(state == 1) {
                 bvh_tree[idx].box = surrounding_box(bvh_tree[idx*2].box, bvh_tree[idx*2+1].box);
             }
         }
+
+        // print
+//        stack[++top] = 1;   // idx
+//        stack[++top] = 0;   // state
+//        while(top >= 0) {
+//            int state = stack[top--], idx = stack[top--];
+//            if(0 == state) {    // first encounter
+//                if(bvh_tree[idx].type == bvh_node_type::LEAF) {
+//                    auto &box = bvh_tree[idx].box;
+//                    printf("%d(%.2f, %.2f, %.2f)(%.2f, %.2f, %.2f) ", idx,
+//                            box.min()[0],box.min()[1],box.min()[2],box.max()[0],box.max()[1],box.max()[2]);
+//                } else if(bvh_tree[idx].type == bvh_node_type::PARENT) {
+//                    stack[++top] = idx; stack[++top] = 1;
+//                    stack[++top] = idx*2+1; stack[++top] = 0; // right
+//                    stack[++top] = idx*2; stack[++top] = 0; // left
+//                    auto &box = bvh_tree[idx].box;
+//                    printf("%d(%.2f, %.2f, %.2f)(%.2f, %.2f, %.2f){\n", idx,
+//                           box.min()[0],box.min()[1],box.min()[2],box.max()[0],box.max()[1],box.max()[2]);
+//                }
+//            } else {
+//                printf("\n} ");
+//            }
+//        }
+//        printf("\n");
 
         delete[] stack;
         delete[] qsort_stack;
@@ -109,6 +112,7 @@ __device__ bool hit_bvh_tree(const ray& r, float t_min, float t_max, hit_record&
     hit_record tmp_rec;
 
     stack[++top] = 1;
+
 
     while(top >= 0) {
         int now = stack[top--];
@@ -127,5 +131,6 @@ __device__ bool hit_bvh_tree(const ray& r, float t_min, float t_max, hit_record&
     }
     return hit_anything;
 }
+
 
 #endif //RAYTRACER_STUDY_BVH_NODE_CUH

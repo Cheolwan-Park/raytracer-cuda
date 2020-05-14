@@ -10,23 +10,27 @@
 
 using namespace std;
 
-constexpr unsigned int nx = 640;
-constexpr unsigned int ny = 360;
+constexpr unsigned int nx = 1920;
+constexpr unsigned int ny = 1080;
 constexpr unsigned int ns = 128;
 constexpr unsigned int nb = 50;
 constexpr unsigned int tx = 16;
 constexpr unsigned int ty = 16;
 
+constexpr int half_grid_len = 11;
+constexpr unsigned int world_size = 4 + 4*half_grid_len*half_grid_len;
+constexpr int stack_max_depth = 32;
+
 // limited version of checkCudaErrors from helper_cuda.h in CUDA examples
 void check_cuda(cudaError_t result, const char *func, const char *file, int line);
 #define checkCudaErrors(val) check_cuda( (val), #val, __FILE__, __LINE__ )
 
-__device__ vec3 color(const ray& r, hittable **world, curandState *local_rand_state) {
+__device__ vec3 color(const ray& r, bvh_node *world, int *stack, curandState *local_rand_state) {
     ray cur_ray = r;
     vec3 cur_attenuation(1, 1, 1);
     for(int b=0; b < nb; ++b) {
         hit_record rec;
-        if((*world)->hit(cur_ray, 0.0001f, infinity, rec)) {
+        if(hit_bvh_tree(cur_ray, 0.001f, infinity, rec, world, stack)) {
             ray scattered;
             vec3 attenuation;
             if(rec.mat_ptr->scatter(cur_ray, rec, attenuation, scattered, local_rand_state)) {
@@ -43,7 +47,7 @@ __device__ vec3 color(const ray& r, hittable **world, curandState *local_rand_st
     return vec3(0, 0, 0);
 }
 
-__global__ void render(vec3 *fb, camera **cam, hittable **world, curandState *rand_state) {
+__global__ void render(vec3 *fb, camera **cam, bvh_node *world, curandState *rand_state, int *whole_stack) {
     auto i = threadIdx.x + blockIdx.x * blockDim.x;
     auto j = threadIdx.y + blockIdx.y * blockDim.y;
     if((i >= nx) || (j >= ny)) return;
@@ -51,12 +55,14 @@ __global__ void render(vec3 *fb, camera **cam, hittable **world, curandState *ra
     auto pixel_index = j*nx + i;
     curandState local_rand_state = rand_state[pixel_index];
 
+    int *stack = whole_stack + pixel_index*stack_max_depth;
+
     vec3 col(0, 0, 0);
     for(int s=0; s<ns; ++s) {
         float u = float(i + curand_uniform(&local_rand_state)) / float(nx);
         float v = float(j + curand_uniform(&local_rand_state)) / float(ny);
         ray r = (*cam)->getRay(u, v, rand_state);
-        col += color(r, world, &local_rand_state);
+        col += color(r, world, stack, &local_rand_state);
     }
     rand_state[pixel_index] = local_rand_state;
     col /= float(ns);
@@ -64,8 +70,6 @@ __global__ void render(vec3 *fb, camera **cam, hittable **world, curandState *ra
     fb[pixel_index] = col;
 }
 
-constexpr int half_grid_len = 5;
-constexpr unsigned int world_size = 4 + 4*half_grid_len*half_grid_len;
 __global__ void create_world(hittable **gpu_list, hittable **gpu_world, camera **gpu_cam) {
     if (threadIdx.x == 0 && blockIdx.x == 0) {
 
@@ -172,9 +176,13 @@ int main() {
     checkCudaErrors(cudaDeviceSynchronize());
 
     // Render
-    render<<<blocks, threads>>>(fb, gpu_cam, gpu_world, gpu_rand_states);
+    int *gpu_stack = nullptr;
+    checkCudaErrors(cudaMalloc((void**)&gpu_stack, sizeof(int)*num_pixels*stack_max_depth));
+    render<<<blocks, threads>>>(fb, gpu_cam, gpu_bvh_tree, gpu_rand_states, gpu_stack);
+//    render<<<100, 100>>>(fb, gpu_cam, gpu_bvh_tree, gpu_rand_states);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaErrors(cudaFree(gpu_stack));
     stop = clock();
     double timer_seconds = ((double)(stop - start)) / CLOCKS_PER_SEC;
     cout << "took " << timer_seconds << " seconds.\n";

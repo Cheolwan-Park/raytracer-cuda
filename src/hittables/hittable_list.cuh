@@ -15,6 +15,7 @@ public:
 
     __device__ __host__ void bounding_box(aabb &output) const override;
 
+    // sort [s, e-1]
     __device__ void qsort(int s, int e, int axis, int *stack);
 
     // get
@@ -60,9 +61,8 @@ __device__ __host__ void hittable_list::bounding_box(aabb &output) const {aabb t
 
 __device__ void hittable_list::qsort(int s, int e, int axis, int *stack) {
     int top = -1;
-//    int stack[10];
     stack[++top] = s;
-    stack[++top] = e;
+    stack[++top] = e-1;
 
     while(top > 0) {
         e = stack[top--];
