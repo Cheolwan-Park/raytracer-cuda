@@ -1,20 +1,20 @@
-#ifndef RAYTRACER_STUDY_MATERIAL_H
-#define RAYTRACER_STUDY_MATERIAL_H
+#ifndef RAYTRACER_STUDY_MATERIAL_CUH
+#define RAYTRACER_STUDY_MATERIAL_CUH
 
-#include "util.h"
-#include "ray.h"
-#include "hittables/hittable.h"
+#include "util.cuh"
+#include "ray.cuh"
+#include "hittables/hittable.cuh"
 
 class material {
 public:
-    CUDA_CALLABLE_MEMBER virtual ~material() { ; }
+    __device__ virtual ~material() { ; }
     __device__ virtual bool scatter(const ray& r_in, const hit_record& rec, vec3& attenuation,
                                             ray& scattered, curandState *rand_state) const = 0;
 };
 
 class lambertian : public material {
 public:
-    CUDA_CALLABLE_MEMBER explicit lambertian(const vec3 &albedo) : _albedo(albedo) { ; }
+    __device__ explicit lambertian(const vec3 &albedo) : _albedo(albedo) { ; }
 
     __device__ bool scatter(const ray& r_in, const hit_record& rec, vec3& attenuation,
                                       ray& scattered, curandState *rand_state) const override {
@@ -25,11 +25,11 @@ public:
     }
 
     // get
-    CUDA_CALLABLE_MEMBER const vec3 &albedo() const { return _albedo; }
-    CUDA_CALLABLE_MEMBER vec3 &albedo() { return _albedo; }
+    __device__ const vec3 &albedo() const { return _albedo; }
+    __device__ vec3 &albedo() { return _albedo; }
 
     // set
-    CUDA_CALLABLE_MEMBER void setAlbedo(const vec3 &v) { _albedo = v; }
+    __device__ void setAlbedo(const vec3 &v) { _albedo = v; }
 
 private:
     vec3 _albedo;
@@ -37,7 +37,7 @@ private:
 
 class metal : public material {
 public:
-    CUDA_CALLABLE_MEMBER explicit metal(const vec3& a, float f) : _albedo(a), _fuzz(f > 1 ? 1 : f) { ; }
+    __device__ explicit metal(const vec3& a, float f) : _albedo(a), _fuzz(f > 1 ? 1 : f) { ; }
 
     __device__ bool scatter(const ray& r_in, const hit_record& rec, vec3& attenuation,
                                     ray& scattered, curandState *rand_state) const override {
@@ -48,15 +48,15 @@ public:
     }
 
     // get
-    CUDA_CALLABLE_MEMBER const vec3 &albedo() const { return _albedo; }
-    CUDA_CALLABLE_MEMBER vec3 &albedo() { return _albedo; }
+    __device__ const vec3 &albedo() const { return _albedo; }
+    __device__ vec3 &albedo() { return _albedo; }
 
-    CUDA_CALLABLE_MEMBER float getFuzz() const { return _fuzz; }
+    __device__ float getFuzz() const { return _fuzz; }
 
     // set
-    CUDA_CALLABLE_MEMBER void setAlbedo(const vec3 &v) { _albedo = v; }
+    __device__ void setAlbedo(const vec3 &v) { _albedo = v; }
 
-    CUDA_CALLABLE_MEMBER void setFuzz(float f) { _fuzz = f; }
+    __device__ void setFuzz(float f) { _fuzz = f; }
 
 private:
     vec3 _albedo;
@@ -65,7 +65,7 @@ private:
 
 class dielectric : public material {
 public:
-    CUDA_CALLABLE_MEMBER explicit dielectric(const vec3 &a, float ri) : _albedo(a), _ref_idx(ri) { ; }
+    __device__ explicit dielectric(const vec3 &a, float ri) : _albedo(a), _ref_idx(ri) { ; }
 
     __device__ bool scatter(const ray& r_in, const hit_record& rec, vec3& attenuation,
                                       ray& scattered, curandState *rand_state) const override {
@@ -107,4 +107,4 @@ private:
     float _ref_idx;
 };
 
-#endif //RAYTRACER_STUDY_MATERIAL_H
+#endif //RAYTRACER_STUDY_MATERIAL_CUH

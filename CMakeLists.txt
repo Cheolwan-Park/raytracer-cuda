@@ -6,8 +6,8 @@ set(CMAKE_CUDA_STANDARD 14)
 add_executable(
         raytracer_study
         src/main.cu
-        src/hittables/hittable.h src/hittables/hittable_list.h src/hittables/sphere.h src/material.h src/ray.h src/util.h
-        src/vec3.h src/camera.h)
+        src/hittables/hittable.cuh src/hittables/hittable_list.cuh src/hittables/sphere.cuh src/material.cuh src/ray.cuh src/util.cuh
+        src/vec3.cuh src/camera.cuh src/hittables/aabb.cuh src/hittables/bvh_node.cuh)
 
 
 if (MSVC)

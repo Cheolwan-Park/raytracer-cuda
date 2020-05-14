@@ -1,26 +1,26 @@
-#ifndef RAYTRACER_STUDY_UTIL_H
-#define RAYTRACER_STUDY_UTIL_H
+#ifndef RAYTRACER_STUDY_UTIL_CUH
+#define RAYTRACER_STUDY_UTIL_CUH
 
 #include <fstream>
 #include <string>
 #include <curand_kernel.h>
 #include <limits>
-#include "vec3.h"
+#include "vec3.cuh"
 
 constexpr float infinity = std::numeric_limits<float>::infinity();
 constexpr float pi = 3.1415926535897932385f;
 
-__device__ __host__ inline float degrees_to_radians(float degrees) {
+__device__ __host__ float degrees_to_radians(float degrees) {
     return degrees * pi / 180.0f;
 }
 
-__device__ inline float gpu_random(curandState *rand_state, float min, float max) {
+__device__ float gpu_random(curandState *rand_state, float min, float max) {
     return curand_uniform(rand_state)*(max-min) + min;
 }
-__device__ inline vec3 random_vec3(curandState *rand_state, float min, float max) {
+__device__ vec3 random_vec3(curandState *rand_state, float min, float max) {
     return vec3(gpu_random(rand_state, min, max), gpu_random(rand_state, min, max), gpu_random(rand_state, min, max));
 }
-__device__ inline vec3 random01_vec3(curandState *rand_state) {
+__device__ vec3 random01_vec3(curandState *rand_state) {
     return vec3(curand_uniform(rand_state),curand_uniform(rand_state),curand_uniform(rand_state));
 }
 __device__ vec3 random_in_unit_sphere(curandState *local_rand_state) {
@@ -37,11 +37,6 @@ __device__ vec3 random_unit_vector(curandState *rand_state) {
     return vec3(r*cos(a), r*sin(a), z);
 }
 __device__ vec3 random_in_unit_disk(curandState *rand_state) {
-//    while (true) {
-//        auto p = vec3(gpu_random(rand_state, -1, 1), gpu_random(rand_state, -1, 1), 0);
-//        if (p.squared_length() >= 1) continue;
-//        return p;
-//    }
     auto theta = gpu_random(rand_state, 0, 2*pi);
     vec3 p(cos(theta), sin(theta), 0);
     return p * curand_uniform(rand_state);
@@ -69,6 +64,13 @@ __device__ bool refract(const vec3& v, const vec3& n, float ni_over_nt, vec3& re
         return false;
 }
 
+template <typename T>
+__device__ void gpu_swap(T &a, T &b) {
+    T tmp = a;
+    a = b;
+    b = tmp;
+}
+
 bool saveAsPPM(const std::string &filename, const vec3 *fb, const int nx, const int ny) {
     using namespace std;
 
@@ -93,4 +95,4 @@ bool saveAsPPM(const std::string &filename, const vec3 *fb, const int nx, const 
     return true;
 }
 
-#endif //RAYTRACER_STUDY_UTIL_H
+#endif //RAYTRACER_STUDY_UTIL_CUH

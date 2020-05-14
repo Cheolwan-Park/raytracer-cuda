@@ -1,12 +1,12 @@
-#ifndef RAYTRACER_STUDY_CAMERA_H
-#define RAYTRACER_STUDY_CAMERA_H
+#ifndef RAYTRACER_STUDY_CAMERA_CUH
+#define RAYTRACER_STUDY_CAMERA_CUH
 
-#include "util.h"
-#include "ray.h"
+#include "util.cuh"
+#include "ray.cuh"
 
 class camera {
 public:
-    CUDA_CALLABLE_MEMBER explicit camera(const vec3 &look_from, const vec3 &look_at, const vec3 &up,
+    __device__ explicit camera(const vec3 &look_from, const vec3 &look_at, const vec3 &up,
                                         float vertical_fov, float aspect_ratio, float aperture, float focus_dist)
     : _origin(look_from), _lower_left_corner(), _horizontal(), _vertical(), _u(), _v(), _w(){
         _lens_radius = aperture/2;
@@ -42,4 +42,4 @@ private:
     float _lens_radius;
 };
 
-#endif //RAYTRACER_STUDY_CAMERA_H
+#endif //RAYTRACER_STUDY_CAMERA_CUH
