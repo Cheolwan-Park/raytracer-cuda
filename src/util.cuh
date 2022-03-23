@@ -14,6 +14,10 @@ __device__ __host__ float degrees_to_radians(float degrees) {
     return degrees * pi / 180.0f;
 }
 
+__device__ __host__ float clamp(float v, float min, float max) {
+    return v < min ? min : (v > max ? max : v);
+}
+
 __device__ float gpu_random(curandState *rand_state, float min, float max) {
     return curand_uniform(rand_state)*(max-min) + min;
 }

@@ -4,38 +4,44 @@
 #include "util.cuh"
 #include "ray.cuh"
 #include "hittables/hittable.cuh"
+#include "texture.cuh"
 
-class material {
+class base_material {
 public:
-    __device__ virtual ~material() { ; }
+    __device__ virtual ~base_material() { ; }
     __device__ virtual bool scatter(const ray& r_in, const hit_record& rec, vec3& attenuation,
                                             ray& scattered, curandState *rand_state) const = 0;
 };
 
-class lambertian : public material {
+class lambertian : public base_material {
 public:
-    __device__ explicit lambertian(const vec3 &albedo) : _albedo(albedo) { ; }
+    __device__ lambertian() = delete;
+    __device__ explicit lambertian(base_texture *tex) : _albedo(tex) { ; }
+
+    __device__ ~lambertian() override {
+        delete _albedo;
+    }
 
     __device__ bool scatter(const ray& r_in, const hit_record& rec, vec3& attenuation,
                                       ray& scattered, curandState *rand_state) const override {
         vec3 tgt_dir = rec.normal + random_unit_vector(rand_state);
         scattered = ray(rec.p, tgt_dir);
-        attenuation = _albedo;
+        attenuation = _albedo->value(rec.u, rec.v, rec.p);
         return true;
     }
 
     // get
-    __device__ const vec3 &albedo() const { return _albedo; }
-    __device__ vec3 &albedo() { return _albedo; }
+    __device__ const base_texture *albedo() const { return _albedo; }
+    __device__ base_texture *albedo() { return _albedo; }
 
     // set
-    __device__ void setAlbedo(const vec3 &v) { _albedo = v; }
+    __device__ void setAlbedo(base_texture *tex) { _albedo = tex; }
 
 private:
-    vec3 _albedo;
+    base_texture *_albedo;
 };
 
-class metal : public material {
+class metal : public base_material {
 public:
     __device__ explicit metal(const vec3& a, float f) : _albedo(a), _fuzz(f > 1 ? 1 : f) { ; }
 
@@ -63,7 +69,7 @@ private:
     float _fuzz;
 };
 
-class dielectric : public material {
+class dielectric : public base_material {
 public:
     __device__ explicit dielectric(const vec3 &a, float ri) : _albedo(a), _ref_idx(ri) { ; }
 

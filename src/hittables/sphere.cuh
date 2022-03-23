@@ -7,7 +7,7 @@
 class sphere : public hittable {
 public:
     __device__ sphere(): _pos(), _radius(0.0f), _mat(nullptr) { ; }
-    __device__ explicit sphere(const vec3 &pos, float radius, material *mat)
+    __device__ explicit sphere(const vec3 &pos, float radius, base_material *mat)
                                         : _pos(pos), _radius(radius), _mat(mat) { ; }
 
     __device__ bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const override;
@@ -22,18 +22,18 @@ public:
 
     __device__ float getRadius() const { return _radius; }
 
-    __device__ const material *getMaterial() { return _mat; }
+    __device__ const base_material *getMaterial() { return _mat; }
 
     // set
     __device__ void setPos(const vec3 &v) { _pos = v; }
 
     __device__ void setRadius(float v) { _radius = v; }
 
-    __device__ void setMaterial(material *mat) { _mat = mat; }
+    __device__ void setMaterial(base_material *mat) { _mat = mat; }
 private:
     vec3 _pos;
     float _radius;
-    material *_mat;
+    base_material *_mat;
 };
 
 __device__ bool sphere::hit(const ray &r, float t_min, float t_max, hit_record &rec) const {

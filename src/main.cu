@@ -12,14 +12,10 @@ using namespace std;
 
 constexpr unsigned int nx = 1920;
 constexpr unsigned int ny = 1080;
-constexpr unsigned int ns = 128;
+constexpr unsigned int ns = 64;
 constexpr unsigned int nb = 50;
 constexpr unsigned int tx = 16;
 constexpr unsigned int ty = 16;
-
-constexpr int half_grid_len = 11;
-constexpr unsigned int world_size = 4 + 4*half_grid_len*half_grid_len;
-constexpr int stack_max_depth = 32;
 
 // limited version of checkCudaErrors from helper_cuda.h in CUDA examples
 void check_cuda(cudaError_t result, const char *func, const char *file, int line);
@@ -55,7 +51,7 @@ __global__ void render(vec3 *fb, camera **cam, bvh_node *world, curandState *ran
     auto pixel_index = j*nx + i;
     curandState local_rand_state = rand_state[pixel_index];
 
-    int *stack = whole_stack + pixel_index*stack_max_depth;
+    int *stack = whole_stack + pixel_index * bvh_stack_max_depth;
 
     vec3 col(0, 0, 0);
     for(int s=0; s<ns; ++s) {
@@ -70,50 +66,54 @@ __global__ void render(vec3 *fb, camera **cam, bvh_node *world, curandState *ran
     fb[pixel_index] = col;
 }
 
+constexpr unsigned int world_size = 1 + 22*22 + 3;
+
+__global__ void random_scene(hittable **gpu_list) {
+    curandState rand_state;
+
+    base_material *mat = new lambertian(new solid_texture(vec3(0.5, 0.5, 0.5)));
+    gpu_list[0] = new sphere(vec3(0, -1000, 0), 1000, mat);
+
+    int idx=1;
+    for(int x=-11; x<11; ++x) {
+        for(int y=-11; y<11; ++y) {
+            auto choose_mat = gpu_random(&rand_state, 0, 1);
+            vec3 center((float)x + gpu_random(&rand_state, 0, 1)*0.9f, 0.2, (float)y + gpu_random(&rand_state, 0, 1)*0.9f);
+
+            if(choose_mat < 0.8) {
+                auto albedo = random01_vec3(&rand_state) * random01_vec3(&rand_state);
+                mat = new lambertian(new solid_texture(albedo));
+            } else if(choose_mat < 0.95) {
+                auto albedo = random_vec3(&rand_state, 0.5, 1);
+                auto fuzz = gpu_random(&rand_state, 0, 0.5);
+                mat = new metal(albedo, fuzz);
+            } else {
+                auto albedo = random_vec3(&rand_state, 0.5, 1);
+                mat = new dielectric(albedo, 1.5);
+            }
+            gpu_list[idx++] = new sphere(center, 0.2, mat);
+        }
+    }
+
+    auto mat1 = new dielectric(vec3(1, 1, 1), 1.5);
+    gpu_list[idx++] = new sphere(vec3(0, 1, 0), 1, mat1);
+
+    auto mat2 = new lambertian(new solid_texture(vec3(0.4, 0.2, 0.1)));
+    gpu_list[idx++] = new sphere(vec3(-4, 1, 0), 1, mat2);
+
+    auto mat3 = new metal(vec3(0.7, 0.6, 0.5), 0);
+    gpu_list[idx++] = new sphere(vec3(4, 1, 0), 1, mat3);
+}
+
 __global__ void create_world(hittable **gpu_list, hittable **gpu_world, camera **gpu_cam) {
     if (threadIdx.x == 0 && blockIdx.x == 0) {
-
-        gpu_list[0] = new sphere(vec3(0, -1000, 0), 1000, new lambertian(vec3(0.5, 0.5, 0.5)));
-        gpu_list[1] = new sphere(vec3(0, 1, 0), 1, new dielectric(vec3(1, 1, 1), 1.5));
-        gpu_list[2] = new sphere(vec3(-2.2, 1, 0), 1, new lambertian(vec3(0.4, 0.2, 0.1)));
-        gpu_list[3] = new sphere(vec3(2.2, 1, 0), 1, new metal(vec3(0.7, 0.6, 0.5), 0.0));
-
-
-        curandState rand_state;
-        curand_init(1984, 0, 0, &rand_state);
-        int i=4;
-        for(int a=-half_grid_len; a<half_grid_len; ++a) {
-            for(int b=-half_grid_len; b<half_grid_len; ++b) {
-                auto choose_mat = curand_uniform(&rand_state);
-                vec3 pos;
-                do {
-                    pos = vec3(float(a) + 0.9f * curand_uniform(&rand_state), 0.2 + 0.5f * curand_uniform(&rand_state),
-                               float(b) + 0.9f * curand_uniform(&rand_state));
-                } while((pos - vec3(4, 0.2, 0)).length() < 1.2f);
-                if(choose_mat < 0.8f) {
-                    // diffuse
-                    auto albedo = random01_vec3(&rand_state) * random01_vec3(&rand_state);
-                    gpu_list[i++] = new sphere(pos, 0.2, new lambertian(albedo));
-                } else if(choose_mat < 0.95f) {
-                    // metal
-                    auto albedo = random_vec3(&rand_state, 0.5f, 1.0f);
-                    auto fuzz = gpu_random(&rand_state, 0, 0.5f);
-                    gpu_list[i++] = new sphere(pos, 0.2, new metal(albedo, fuzz));
-                } else {
-                    // glass
-                    auto albedo = random_vec3(&rand_state, 0.5f, 1.0f);
-                    gpu_list[i++] = new sphere(pos, 0.2, new dielectric(albedo, 1.5f));
-                }
-            }
-        }
-
         *gpu_world = new hittable_list(gpu_list, world_size);
 
         // init camera
-        vec3 look_from(0, 1, -3);
-        vec3 look_at(0, 1, 0);
+        vec3 look_from(13, 2, 3);
+        vec3 look_at(0, 0, 0);
         vec3 up(0, 1, 0);
-        auto focus_dist = 3.0f;
+        auto focus_dist = 10.0f;
         auto aperture = 0.1f;
         *gpu_cam = new camera(look_from, look_at, up, 90, float(nx)/ny, aperture, focus_dist);
     }
@@ -146,6 +146,9 @@ int main() {
     checkCudaErrors(cudaMalloc((void**)&gpu_world, sizeof(void*)));
     camera **gpu_cam = nullptr;
     checkCudaErrors(cudaMalloc((void**)&gpu_cam, sizeof(void*)));
+    random_scene<<<1, 1>>>(gpu_list);
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
     create_world<<<1, 1>>>(gpu_list, gpu_world, gpu_cam);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
@@ -177,9 +180,8 @@ int main() {
 
     // Render
     int *gpu_stack = nullptr;
-    checkCudaErrors(cudaMalloc((void**)&gpu_stack, sizeof(int)*num_pixels*stack_max_depth));
+    checkCudaErrors(cudaMalloc((void**)&gpu_stack, sizeof(int) * num_pixels * bvh_stack_max_depth));
     render<<<blocks, threads>>>(fb, gpu_cam, gpu_bvh_tree, gpu_rand_states, gpu_stack);
-//    render<<<100, 100>>>(fb, gpu_cam, gpu_bvh_tree, gpu_rand_states);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
     checkCudaErrors(cudaFree(gpu_stack));

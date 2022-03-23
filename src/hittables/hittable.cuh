@@ -6,13 +6,15 @@
 #include "aabb.cuh"
 #include <iostream>
 
-class material;
+class base_material;
 
 struct hit_record {
     vec3 p;
     vec3 normal;
     float t;
-    material *mat_ptr;
+    float u;
+    float v;
+    base_material *mat_ptr;
 };
 
 class hittable {
